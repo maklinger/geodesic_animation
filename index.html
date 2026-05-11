@@ -11,6 +11,33 @@
 <body>
 <canvas id="c"></canvas>
 <script>
+
+// ─── TUNING PARAMETERS ────────────────────────────────────────────────────────
+
+const DT              = 0.01;   // Δλ per integration step (smaller = more accurate)
+const STEPS_PER_FRAME = 5;      // integration steps per rendered frame
+                                //   visual speed ∝ DT × STEPS_PER_FRAME
+const TARGET_FPS      = 120;     // rendering rate (frames per second)
+                                //   lower to save CPU, e.g. 30
+
+// ─── PHYSICS PARAMETERS ───────────────────────────────────────────────────────
+
+const M  = 1.0;
+const a  = 0.9;   // spin: 0 = Schwarzschild, <1 = Kerr
+const rs = 2 * M;
+const a2 = a * a;
+const r_horizon = M + Math.sqrt(M * M - a2);
+const r_ergo    = rs;
+
+// ─── VISUAL PARAMETERS ────────────────────────────────────────────────────────
+
+const N_PHOTONS       = 18;
+const TRAIL           = 700;
+const RIPPLE_MAX_FRAC = 0.85;
+const RIPPLE_DURATION = 90;   // frames
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
@@ -21,24 +48,8 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-const M  = 1.0;
-const a  = 0.9;
-const rs = 2 * M;
-const a2 = a * a;
-const r_horizon = M + Math.sqrt(M * M - a2);
-const r_ergo    = rs;
-
-const N_PHOTONS       = 18;
-const TRAIL           = 700;
-const DT              = 0.06;
-const RIPPLE_MAX_FRAC = 0.85;
-const RIPPLE_DURATION = 90;
-
-// scale: map BL coords to pixels using the SHORT side only,
-// so the BH always looks circular and fills the screen nicely.
-// But spawning uses the FULL rectangle independently.
 function getScale() {
-  return Math.min(canvas.width, canvas.height) / 60;
+  return Math.min(canvas.width, canvas.height) / 20;
 }
 
 function frameDragOmega(r) {
@@ -91,16 +102,14 @@ function spawnPhoton() {
   const cx = W / 2, cy = H / 2;
   const scale = getScale();
 
-  // Pick a point uniformly on the full rectangle perimeter
   const perim = 2 * (W + H);
   let t = Math.random() * perim;
   let sx, sy;
-  if (t < W)                  { sx = t;       sy = 0; }
-  else if (t < W + H)         { sx = W;        sy = t - W; }
-  else if (t < 2 * W + H)     { sx = 2*W+H-t; sy = H; }
-  else                        { sx = 0;        sy = perim - t; }
+  if      (t < W)           { sx = t;         sy = 0; }
+  else if (t < W + H)       { sx = W;          sy = t - W; }
+  else if (t < 2 * W + H)   { sx = 2*W+H - t; sy = H; }
+  else                      { sx = 0;          sy = perim - t; }
 
-  // Convert screen position -> BL coords using the same scale as rendering
   const dx = (sx - cx) / scale;
   const dy = (sy - cy) / scale;
   const r0   = Math.sqrt(dx*dx + dy*dy);
@@ -121,7 +130,6 @@ function spawnPhoton() {
   return { r: r0, phi: phi0, pr: -Math.sqrt(pr0sq), L, E, r0, trail: [] };
 }
 
-// Frame-drag swirl dots
 const N_SWIRL_RINGS = 4;
 const N_SWIRL_DOTS  = 12;
 let swirlDots = [];
@@ -140,21 +148,29 @@ while (photons.length < N_PHOTONS) {
   const p = spawnPhoton(); if (p) photons.push(p);
 }
 
-// Escape radius: half the diagonal in BL units, so photons
-// reaching any screen corner are retired cleanly
 function escapeR() {
   const W = canvas.width, H = canvas.height;
   return Math.sqrt((W/2)**2 + (H/2)**2) / getScale() + 2;
 }
 
-function frame() {
+// ─── FRAME THROTTLE ───────────────────────────────────────────────────────────
+const FRAME_INTERVAL = 1000 / TARGET_FPS; // ms between renders
+let lastFrameTime = 0;
+
+function frame(timestamp) {
+  requestAnimationFrame(frame);
+
+  // Throttle to TARGET_FPS
+  if (timestamp - lastFrameTime < FRAME_INTERVAL) return;
+  lastFrameTime = timestamp;
+
   const W = canvas.width, H = canvas.height;
   const cx = W / 2, cy = H / 2;
-  const scale  = getScale();
-  const rh_px  = r_horizon * scale;
-  const re_px  = r_ergo    * scale;
+  const scale      = getScale();
+  const rh_px      = r_horizon * scale;
+  const re_px      = r_ergo    * scale;
   const RIPPLE_MAX_R = rh_px * RIPPLE_MAX_FRAC;
-  const R_escape = escapeR();
+  const R_escape   = escapeR();
 
   ctx.fillStyle = "rgba(0,0,0,0.13)";
   ctx.fillRect(0, 0, W, H);
@@ -175,7 +191,7 @@ function frame() {
 
   // Frame-drag swirl dots
   for (let d of swirlDots) {
-    d.phi += d.omega * DT * 0.6;
+    d.phi += d.omega * DT * STEPS_PER_FRAME * 0.6;
     const sx = cx + d.r * Math.cos(d.phi) * scale;
     const sy = cy + d.r * Math.sin(d.phi) * scale;
     if (d.r > r_horizon * 1.05) {
@@ -225,9 +241,17 @@ function frame() {
 
   for (let i = photons.length - 1; i >= 0; i--) {
     const p = photons[i];
-    const [nr, nphi, npr] = rk4(p.r, p.phi, p.pr, p.L, p.E, DT);
-    const swallowed = isNaN(nr) || nr < r_horizon * 1.02;
-    const escaped   = !isNaN(nr) && nr > R_escape;
+
+    // ── Multiple integration steps per frame ──
+    let nr = p.r, nphi = p.phi, npr = p.pr;
+    let dead = false;
+    for (let s = 0; s < STEPS_PER_FRAME; s++) {
+      [nr, nphi, npr] = rk4(nr, nphi, npr, p.L, p.E, DT);
+      if (isNaN(nr) || nr < r_horizon * 1.02) { dead = true; break; }
+    }
+
+    const swallowed = dead;
+    const escaped   = !dead && nr > R_escape;
 
     if (swallowed || escaped) {
       if (swallowed && p.trail.length > 0) {
@@ -263,21 +287,21 @@ function frame() {
     ctx.fillStyle = `rgb(${rc},${gc},${bc})`; ctx.fill();
   }
 
-  // HUD — top-left
+  // HUD
   ctx.font = "12px monospace";
   ctx.fillStyle = "rgba(150,150,150,0.45)";
-  ctx.fillText(`Kerr  a/M = ${a}   r+ = ${r_horizon.toFixed(3)} M`, 14, 22);
+  ctx.fillText(`Kerr  a/M = ${a}   r_H = ${r_horizon.toFixed(3)} M`, 14, 22);
   ctx.fillStyle = "rgba(255,140,0,0.4)";
-  ctx.fillText(`ergosphere r = ${r_ergo.toFixed(2)} M  (frame dragging)`, 14, 40);
-  ctx.fillStyle = "rgba(100,100,255,0.6)";
-  ctx.fillText("● blueshift", 14, 58);
-  ctx.fillStyle = "rgba(255,100,100,0.6)";
-  ctx.fillText("● redshift", 110, 58);
-
-  requestAnimationFrame(frame);
+  ctx.fillText(`ergosphere r = ${r_ergo.toFixed(0)} M  (frame dragging)`, 14, 40);
+  // ctx.fillStyle = "rgba(180,180,180,0.3)";
+  // ctx.fillText(`Δλ = ${DT}  ×${STEPS_PER_FRAME} steps/frame  @ ${TARGET_FPS} fps`, 14, 58);
+  // ctx.fillStyle = "rgba(100,100,255,0.6)";
+  // ctx.fillText("● blueshift", 14, 76);
+  // ctx.fillStyle = "rgba(255,100,100,0.6)";
+  // ctx.fillText("● redshift", 14, 58);
 }
 
-frame();
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
