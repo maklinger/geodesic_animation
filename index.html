@@ -101,17 +101,17 @@
 <div id="controls">
   <div class="row">
     <span class="label">photons (N)</span>
-    <input type="range" id="sl_n" min="1" max="100" step="1" value="18">
+    <input type="range" id="sl_n" min="1" max="300" step="1" value="18">
     <span class="val" id="vl_n">18</span>
   </div>
   <div class="row">
     <span class="label">trail length</span>
-    <input type="range" id="sl_trail" min="20" max="1200" step="20" value="700">
+    <input type="range" id="sl_trail" min="5" max="1200" step="20" value="700">
     <span class="val" id="vl_trail">700</span>
   </div>
   <div class="row">
     <span class="label">spin  a/M</span>
-    <input type="range" id="sl_a" min="0.01" max="0.999" step="0.01" value="0.9">
+    <input type="range" id="sl_a" min="0.00" max="0.999" step="0.01" value="0.9">
     <span class="val" id="vl_a">0.90</span>
   </div>
   <div class="row">
@@ -126,7 +126,7 @@
   </div>
   <div class="row">
     <span class="label">target fps</span>
-    <input type="range" id="sl_fps" min="10" max="120" step="3" value="60">
+    <input type="range" id="sl_fps" min="10" max="200" step="1" value="60">
     <span class="val" id="vl_fps">60</span>
   </div>
   <div class="divider"></div>
@@ -140,7 +140,7 @@
   <div class="row">
     <span class="label">beam angle °</span>
     <input type="range" id="sl_angle" min="0" max="360" step="1" value="0">
-    <span class="val" id="vl_angle">180</span>
+    <span class="val" id="vl_angle">0</span>
   </div>
 </div>
 
@@ -162,7 +162,7 @@ let DT              = 0.02;
 let STEPS_PER_FRAME = 3;
 let TARGET_FPS      = 60;
 let BEAM_MODE       = false;
-let BEAM_ANGLE_DEG  = 180;
+let BEAM_ANGLE_DEG  = 0;
 
 let photons = [];
 let ripples = [];
