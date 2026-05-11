@@ -41,11 +41,63 @@
   }
   input:checked + .slider-sw { background: rgba(120,120,255,0.7); }
   input:checked + .slider-sw:before { transform: translateX(18px); background: #fff; }
+
+  #hud {
+    position: fixed;
+    top: 12px;
+    left: 14px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #hud-title {
+    font: bold 15px monospace;
+    color: rgba(220,220,255,0.85);
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  #hud-info {
+    font: 12px monospace;
+    color: rgba(150,150,150,0.45);
+    line-height: 1.7;
+  }
+  #hud-info span.blue { color: rgba(100,100,255,0.7); }
+  #hud-info span.red  { color: rgba(255,100,100,0.7); }
+  #hud-info span.orange { color: rgba(255,140,0,0.5); }
+  #hud-info span.dim  { color: rgba(180,180,180,0.35); }
+  #hud-link {
+    pointer-events: all;
+    margin-top: 8px;
+    font: 12px monospace;
+  }
+  #hud-link a {
+    color: rgba(140,180,255,0.65);
+    text-decoration: none;
+  }
+  #hud-link a:hover {
+    color: rgba(180,210,255,0.9);
+    text-decoration: underline;
+  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
+<!-- HUD: title + legend + link -->
+<div id="hud">
+  <div id="hud-title">Photon geodesics around<br>spinning black hole</div>
+  <div id="hud-info">
+    <span id="hud-kerr"></span><br>
+    <span id="hud-ergo" class="orange"></span><br>
+    <span id="hud-int" class="dim"></span><br>
+    <span class="blue">● blueshift</span>&nbsp;&nbsp;<span class="red">● redshift</span><br>
+    <span id="hud-beam" class="dim"></span>
+  </div>
+  <div id="hud-link">
+    <a href="https://github.com/maklinger/geodesic_animation#readme" target="_blank">more information</a>
+  </div>
+</div>
+
+<!-- Controls -->
 <div id="controls">
   <div class="row">
     <span class="label">photons (N)</span>
@@ -77,9 +129,7 @@
     <input type="range" id="sl_fps" min="10" max="120" step="3" value="60">
     <span class="val" id="vl_fps">60</span>
   </div>
-
   <div class="divider"></div>
-
   <div class="toggle-row">
     <span class="label">parallel beam</span>
     <label class="switch">
@@ -146,8 +196,20 @@ function resetPhysics() {
   r_ergo    = rs;
   buildSwirlDots();
   photons   = [];
+  updateHUD();
 }
 resetPhysics();
+
+function updateHUD() {
+  document.getElementById("hud-kerr").textContent =
+    `Kerr  a/M = ${a.toFixed(2)}   r+ = ${r_horizon.toFixed(3)} M`;
+  document.getElementById("hud-ergo").textContent =
+    `ergosphere r = ${r_ergo.toFixed(2)} M  (frame dragging)`;
+  document.getElementById("hud-int").textContent =
+    `Δλ=${DT.toFixed(3)}  ×${STEPS_PER_FRAME}/frame  @${TARGET_FPS}fps`;
+  const beamEl = document.getElementById("hud-beam");
+  beamEl.textContent = BEAM_MODE ? `beam  ${BEAM_ANGLE_DEG}°` : "";
+}
 
 function bindSlider(id, valId, setter, fmt) {
   const sl = document.getElementById(id);
@@ -156,6 +218,7 @@ function bindSlider(id, valId, setter, fmt) {
     const v = parseFloat(sl.value);
     setter(v);
     vl.textContent = fmt(v);
+    updateHUD();
   });
 }
 bindSlider("sl_n",     "vl_n",     v => { N_PHOTONS = Math.round(v); },       v => Math.round(v));
@@ -164,10 +227,11 @@ bindSlider("sl_a",     "vl_a",     v => { a = v; resetPhysics(); },            v
 bindSlider("sl_dt",    "vl_dt",    v => { DT = v; },                          v => v.toFixed(3));
 bindSlider("sl_spf",   "vl_spf",   v => { STEPS_PER_FRAME = Math.round(v); }, v => Math.round(v));
 bindSlider("sl_fps",   "vl_fps",   v => { TARGET_FPS = Math.round(v); },      v => Math.round(v));
-bindSlider("sl_angle", "vl_angle", v => { BEAM_ANGLE_DEG = v; photons = []; }, v => Math.round(v));
+bindSlider("sl_angle", "vl_angle", v => { BEAM_ANGLE_DEG = v; photons = []; updateHUD(); }, v => Math.round(v));
 document.getElementById("tog_beam").addEventListener("change", e => {
   BEAM_MODE = e.target.checked;
   photons = [];
+  updateHUD();
 });
 
 function kerr_rhs(r, phi, pr, L, E) {
@@ -231,48 +295,28 @@ function spawnPhotonRandom() {
 function spawnPhotonBeam(index) {
   const W = canvas.width, H = canvas.height;
   const cx = W/2, cy = H/2, scale = getScale();
-
-  // Beam direction unit vector (pointing inward across screen)
   const angleRad = BEAM_ANGLE_DEG * Math.PI / 180;
   const bx = Math.cos(angleRad), by = Math.sin(angleRad);
-  // Perpendicular (transverse) unit vector
   const px = -by, py = bx;
-
-  // Evenly space photons across the short screen dimension
   const spread = Math.min(W, H) * 0.92;
   const frac   = N_PHOTONS > 1 ? index / (N_PHOTONS - 1) : 0.5;
   const offset = (frac - 0.5) * spread;
-
-  // Start position: opposite edge to beam direction + transverse offset
-  const reach = Math.sqrt((W/2)**2 + (H/2)**2) * 1.01;
+  const reach  = Math.sqrt((W/2)**2 + (H/2)**2) * 1.01;
   const sx = cx - bx * reach + px * offset;
   const sy = cy - by * reach + py * offset;
-
-  // BL coords
-  const dx = (sx - cx) / scale;
-  const dy = (sy - cy) / scale;
+  const dx = (sx - cx) / scale, dy = (sy - cy) / scale;
   const r0   = Math.sqrt(dx*dx + dy*dy);
   const phi0 = Math.atan2(dy, dx);
-
-  // Impact parameter: signed perpendicular distance from BH to this ray.
-  // For a ray at position (dx,dy) moving in direction (bx,by):
-  // b = |pos × dir| = dx*by - dy*bx  (2D cross product, signed)
   const b = dx * by - dy * bx;
   const E = 1.0, L = b * E;
-
-  // pr from null condition R(r)/r^4, sign from beam·rhat
   const r2    = r0 * r0;
   const Delta = r2 - rs * r0 + a2;
   const P     = E * (r2 + a2) - a * L;
   const R     = P * P - Delta * (L - a * E) * (L - a * E);
   const pr0sq = R / (r2 * r2);
   if (pr0sq < 0) return null;
-
-  // Sign: negative = moving inward (r decreasing).
-  // beam · rhat = (bx*dx + by*dy)/r0. Beam points inward so this is negative.
   const inward = (bx * dx + by * dy) < 0;
   const pr0 = inward ? -Math.sqrt(pr0sq) : Math.sqrt(pr0sq);
-
   return { r: r0, phi: phi0, pr: pr0, L, E, r0, trail: [] };
 }
 
@@ -397,20 +441,6 @@ function frame(timestamp) {
     }
     ctx.beginPath(); ctx.arc(x, y, 2, 0, 2*Math.PI);
     ctx.fillStyle = `rgb(${rc},${gc},${bc})`; ctx.fill();
-  }
-
-  ctx.font = "12px monospace";
-  ctx.fillStyle = "rgba(150,150,150,0.45)";
-  ctx.fillText(`Kerr  a/M = ${a.toFixed(2)}   r+ = ${r_horizon.toFixed(3)} M`, 14, 22);
-  ctx.fillStyle = "rgba(255,140,0,0.4)";
-  ctx.fillText(`ergosphere r = ${r_ergo.toFixed(2)} M  (frame dragging)`, 14, 40);
-  ctx.fillStyle = "rgba(180,180,180,0.3)";
-  ctx.fillText(`Δλ=${DT.toFixed(3)}  ×${STEPS_PER_FRAME}/frame  @${TARGET_FPS}fps`, 14, 58);
-  ctx.fillStyle = "rgba(100,100,255,0.6)"; ctx.fillText("● blueshift", 14, 76);
-  ctx.fillStyle = "rgba(255,100,100,0.6)"; ctx.fillText("● redshift",  110, 76);
-  if (BEAM_MODE) {
-    ctx.fillStyle = "rgba(180,180,255,0.4)";
-    ctx.fillText(`beam  ${BEAM_ANGLE_DEG}°`, 14, 94);
   }
 }
 
