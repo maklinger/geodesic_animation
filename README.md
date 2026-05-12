@@ -1,5 +1,5 @@
 # geodesic_animation
-A Kerr BH with photon geodesics coming in. Can be used as a screen saver.
+A Kerr BH with photon geodesics coming in. Can be used as a screen saver. Made together with Claude.
 
 # Photon geodesics around a spinning black hole
 
