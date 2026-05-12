@@ -8,19 +8,11 @@
   canvas { display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 
   #controls {
-    position: fixed;
-    top: 12px;
-    right: 16px;
-    color: rgba(200,200,200,0.75);
-    font: 12px monospace;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    z-index: 10;
-    background: rgba(0,0,0,0.35);
-    padding: 10px 14px;
-    border-radius: 8px;
-    min-width: 220px;
+    position: fixed; top: 12px; right: 16px;
+    color: rgba(200,200,200,0.75); font: 12px monospace;
+    display: flex; flex-direction: column; gap: 6px; z-index: 10;
+    background: rgba(0,0,0,0.35); padding: 10px 14px;
+    border-radius: 8px; min-width: 220px;
   }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .label { flex: 0 0 110px; }
@@ -42,47 +34,32 @@
   input:checked + .slider-sw { background: rgba(120,120,255,0.7); }
   input:checked + .slider-sw:before { transform: translateX(18px); background: #fff; }
 
-  #hud {
-    position: fixed;
-    top: 12px;
-    left: 14px;
-    z-index: 10;
-    pointer-events: none;
-  }
-  #hud-title {
-    font: bold 15px monospace;
-    color: rgba(220,220,255,0.85);
-    margin-bottom: 6px;
-    line-height: 1.3;
-  }
-  #hud-info {
-    font: 12px monospace;
-    color: rgba(150,150,150,0.45);
-    line-height: 1.7;
-  }
-  #hud-info span.blue { color: rgba(100,100,255,0.7); }
-  #hud-info span.red  { color: rgba(255,100,100,0.7); }
+  #hud { position: fixed; top: 12px; left: 14px; z-index: 10; pointer-events: none; }
+  #hud-title { font: bold 15px monospace; color: rgba(220,220,255,0.85); margin-bottom: 6px; line-height: 1.3; }
+  #hud-info  { font: 12px monospace; color: rgba(150,150,150,0.45); line-height: 1.7; }
+  #hud-info span.blue   { color: rgba(100,100,255,0.7); }
+  #hud-info span.red    { color: rgba(255,100,100,0.7); }
   #hud-info span.orange { color: rgba(255,140,0,0.5); }
-  #hud-info span.dim  { color: rgba(180,180,180,0.35); }
-  #hud-link {
-    pointer-events: all;
-    margin-top: 8px;
-    font: 12px monospace;
+  #hud-info span.dim    { color: rgba(180,180,180,0.35); }
+  #hud-link { pointer-events: all; margin-top: 8px; font: 12px monospace; }
+  #hud-link a { color: rgba(140,180,255,0.65); text-decoration: none; }
+  #hud-link a:hover { color: rgba(180,210,255,0.9); text-decoration: underline; }
+
+  /* ruler label overlay */
+  #ruler-label {
+    position: fixed;
+    font: 11px monospace;
+    color: rgba(180,180,180,0.35);
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
   }
-  #hud-link a {
-    color: rgba(140,180,255,0.65);
-    text-decoration: none;
-  }
-  #hud-link a:hover {
-    color: rgba(180,210,255,0.9);
-    text-decoration: underline;
-  }
+  #ruler-label sub { font-size: 8px; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
-<!-- HUD: title + legend + link -->
 <div id="hud">
   <div id="hud-title">Photon geodesics around<br>spinning black hole</div>
   <div id="hud-info">
@@ -97,7 +74,9 @@
   </div>
 </div>
 
-<!-- Controls -->
+<!-- Ruler unit label as HTML so we get proper sub/superscripts -->
+<div id="ruler-label">r / r<sub>g</sub></div>
+
 <div id="controls">
   <div class="row">
     <span class="label">photons (N)</span>
@@ -106,18 +85,18 @@
   </div>
   <div class="row">
     <span class="label">trail length</span>
-    <input type="range" id="sl_trail" min="5" max="1200" step="20" value="700">
+    <input type="range" id="sl_trail" min="10" max="1200" step="10" value="700">
     <span class="val" id="vl_trail">700</span>
   </div>
   <div class="row">
     <span class="label">spin  a/M</span>
-    <input type="range" id="sl_a" min="0.00" max="0.999" step="0.01" value="0.9">
+    <input type="range" id="sl_a" min="0.0" max="1" step="0.01" value="0.9">
     <span class="val" id="vl_a">0.90</span>
   </div>
   <div class="row">
     <span class="label">Δλ (accuracy)</span>
-    <input type="range" id="sl_dt" min="0.002" max="0.1" step="0.002" value="0.02">
-    <span class="val" id="vl_dt">0.020</span>
+    <input type="range" id="sl_dt" min="0.001" max="0.1" step="0.001" value="0.01">
+    <span class="val" id="vl_dt">0.010</span>
   </div>
   <div class="row">
     <span class="label">steps/frame</span>
@@ -126,7 +105,7 @@
   </div>
   <div class="row">
     <span class="label">target fps</span>
-    <input type="range" id="sl_fps" min="10" max="200" step="1" value="60">
+    <input type="range" id="sl_fps" min="10" max="320" step="3" value="60">
     <span class="val" id="vl_fps">60</span>
   </div>
   <div class="divider"></div>
@@ -147,10 +126,12 @@
 <script>
 const canvas = document.getElementById("c");
 const ctx    = canvas.getContext("2d");
+const rulerLabelEl = document.getElementById("ruler-label");
 
 function resize() {
   canvas.width  = canvas.offsetWidth  || window.innerWidth;
   canvas.height = canvas.offsetHeight || window.innerHeight;
+  positionRulerLabel();
 }
 resize();
 window.addEventListener("resize", resize);
@@ -158,13 +139,18 @@ window.addEventListener("resize", resize);
 let N_PHOTONS       = 18;
 let TRAIL           = 700;
 let a               = 0.9;
-let DT              = 0.02;
+let DT              = 0.01;
 let STEPS_PER_FRAME = 3;
 let TARGET_FPS      = 60;
 let BEAM_MODE       = false;
 let BEAM_ANGLE_DEG  = 0;
 
+const SUB_THRESHOLD_FACTOR = 4.0;
+const SUB_N_MAX             = 8;
+const RULER_TICKS           = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30];
+
 let photons = [];
+let ghosts  = [];
 let ripples = [];
 
 const M  = 1.0;
@@ -195,20 +181,34 @@ function resetPhysics() {
   r_horizon = M + Math.sqrt(M * M - a2);
   r_ergo    = rs;
   buildSwirlDots();
-  photons   = [];
+  photons = [];
+  ghosts  = [];
   updateHUD();
 }
 resetPhysics();
 
 function updateHUD() {
-  document.getElementById("hud-kerr").textContent =
-    `Kerr  a/M = ${a.toFixed(2)}   r+ = ${r_horizon.toFixed(3)} M`;
-  document.getElementById("hud-ergo").textContent =
-    `ergosphere r = ${r_ergo.toFixed(2)} M  (frame dragging)`;
+  // Use HTML sub for r+ and rg
+  document.getElementById("hud-kerr").innerHTML =
+    `Kerr &nbsp;a/M = ${a.toFixed(2)} &nbsp;&nbsp;r<sub>+</sub> = ${r_horizon.toFixed(3)} r<sub>g</sub>`;
+  document.getElementById("hud-ergo").innerHTML =
+    `ergosphere r = ${r_ergo.toFixed(2)} r<sub>g</sub> &nbsp;(frame dragging)`;
   document.getElementById("hud-int").textContent =
-    `Δλ=${DT.toFixed(3)}  ×${STEPS_PER_FRAME}/frame  @${TARGET_FPS}fps`;
-  const beamEl = document.getElementById("hud-beam");
-  beamEl.textContent = BEAM_MODE ? `beam  ${BEAM_ANGLE_DEG}°` : "";
+    `\u0394\u03bb=${DT.toFixed(3)}  \u00d7${STEPS_PER_FRAME}/frame  @${TARGET_FPS}fps`;
+  document.getElementById("hud-beam").textContent =
+    BEAM_MODE ? `beam  ${BEAM_ANGLE_DEG}\u00b0` : "";
+}
+
+function positionRulerLabel() {
+  const W = canvas.width, H = canvas.height;
+  const scale = getScale();
+  const maxR  = (W / 2) / scale;
+  const rulerY = H - 28;
+  const tickH  = 7;
+  // position just right of the rightmost tick end
+  const xPx = W / 2 + maxR * scale * 0.97 - 34;
+  rulerLabelEl.style.left = xPx + "px";
+  rulerLabelEl.style.top  = (rulerY - tickH - 16) + "px";
 }
 
 function bindSlider(id, valId, setter, fmt) {
@@ -227,10 +227,10 @@ bindSlider("sl_a",     "vl_a",     v => { a = v; resetPhysics(); },            v
 bindSlider("sl_dt",    "vl_dt",    v => { DT = v; },                          v => v.toFixed(3));
 bindSlider("sl_spf",   "vl_spf",   v => { STEPS_PER_FRAME = Math.round(v); }, v => Math.round(v));
 bindSlider("sl_fps",   "vl_fps",   v => { TARGET_FPS = Math.round(v); },      v => Math.round(v));
-bindSlider("sl_angle", "vl_angle", v => { BEAM_ANGLE_DEG = v; photons = []; updateHUD(); }, v => Math.round(v));
+bindSlider("sl_angle", "vl_angle", v => { BEAM_ANGLE_DEG = v; },              v => Math.round(v));
 document.getElementById("tog_beam").addEventListener("change", e => {
   BEAM_MODE = e.target.checked;
-  photons = [];
+  photons = []; ghosts = [];
   updateHUD();
 });
 
@@ -257,6 +257,27 @@ function rk4(r, phi, pr, L, E, dt) {
   ];
 }
 
+function subN(r) {
+  const r_thresh = SUB_THRESHOLD_FACTOR * r_horizon;
+  if (r >= r_thresh) return 1;
+  const frac = Math.max(0, (r_thresh - r) / (r_thresh - r_horizon));
+  return Math.round(1 + (SUB_N_MAX - 1) * frac);
+}
+
+function adaptiveStep(r, phi, pr, L, E, trail, cx, cy, scale, r0) {
+  const n  = subN(r);
+  const dt = DT / n;
+  for (let k = 0; k < n; k++) {
+    [r, phi, pr] = rk4(r, phi, pr, L, E, dt);
+    if (isNaN(r) || r < r_horizon * 1.02) return [r, phi, pr, true, k];
+    const x = cx + r * Math.cos(phi) * scale;
+    const y = cy + r * Math.sin(phi) * scale;
+    const [rc, gc, bc] = shiftColor(r, r0);
+    trail.push([x, y, rc, gc, bc]);
+  }
+  return [r, phi, pr, false, n];
+}
+
 function redshift(r) {
   return Math.sqrt(Math.max(0.001, 1 - rs/r + a2/(r*r)));
 }
@@ -269,6 +290,58 @@ function getScale() { return Math.min(canvas.width, canvas.height) / 20; }
 function escapeR() {
   const W = canvas.width, H = canvas.height;
   return Math.sqrt((W/2)**2 + (H/2)**2) / getScale() + 2;
+}
+
+// ── Ruler (canvas part: baseline + ticks + numbers) ──────────────────────────
+function drawRuler() {
+  const W = canvas.width, H = canvas.height;
+  const cx    = W / 2;
+  const scale = getScale();
+  const maxR  = (W / 2) / scale;
+  const rulerY = H - 28;
+  const tickH  = 7;
+
+  const ticks = RULER_TICKS.filter(v => v <= maxR * 0.97);
+
+  // Baseline
+  ctx.beginPath();
+  ctx.moveTo(cx - maxR * scale * 0.97, rulerY);
+  ctx.lineTo(cx + maxR * scale * 0.97, rulerY);
+  ctx.strokeStyle = "rgba(180,180,180,0.25)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Centre marker (orange, BH position)
+  ctx.beginPath();
+  ctx.moveTo(cx, rulerY - tickH);
+  ctx.lineTo(cx, rulerY + 2);
+  ctx.strokeStyle = "rgba(255,160,40,0.5)";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.font = "10px monospace";
+  ctx.textAlign = "center";
+
+  for (const v of ticks) {
+    const dx = v * scale;
+    for (const side of [-1, 1]) {
+      const x = cx + side * dx;
+      if (x < 10 || x > W - 10) continue;
+      ctx.beginPath();
+      ctx.moveTo(x, rulerY - tickH);
+      ctx.lineTo(x, rulerY + 2);
+      ctx.strokeStyle = "rgba(180,180,180,0.45)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if (side === 1) {
+        ctx.fillStyle = "rgba(180,180,180,0.45)";
+        ctx.fillText(`${v}`, x, rulerY - tickH - 3);
+      }
+    }
+  }
+
+  // Update HTML label position each frame (cheap, just CSS)
+  positionRulerLabel();
 }
 
 function spawnPhotonRandom() {
@@ -289,7 +362,8 @@ function spawnPhotonRandom() {
   const P = E*(r2+a2)-a*L, R = P*P-Delta*(L-a*E)*(L-a*E);
   const pr0sq = R/(r2*r2);
   if (pr0sq < 0) return null;
-  return { r: r0, phi: phi0, pr: -Math.sqrt(pr0sq), L, E, r0, trail: [] };
+  return { r: r0, phi: phi0, pr: -Math.sqrt(pr0sq), L, E, r0,
+           trail: [], totalPtsAdded: 0, totalMacroSteps: 0, beamIndex: -1 };
 }
 
 function spawnPhotonBeam(index) {
@@ -317,11 +391,22 @@ function spawnPhotonBeam(index) {
   if (pr0sq < 0) return null;
   const inward = (bx * dx + by * dy) < 0;
   const pr0 = inward ? -Math.sqrt(pr0sq) : Math.sqrt(pr0sq);
-  return { r: r0, phi: phi0, pr: pr0, L, E, r0, trail: [] };
+  return { r: r0, phi: phi0, pr: pr0, L, E, r0,
+           trail: [], totalPtsAdded: 0, totalMacroSteps: 0, beamIndex: index };
 }
 
 function spawnPhoton(index) {
   return BEAM_MODE ? spawnPhotonBeam(index) : spawnPhotonRandom();
+}
+
+function drawTrail(trail) {
+  for (let j = 1; j < trail.length; j++) {
+    const alpha = (j / trail.length) * 0.85;
+    const [xp, yp] = trail[j-1], [xc, yc, rc, gc, bc] = trail[j];
+    ctx.beginPath(); ctx.moveTo(xp, yp); ctx.lineTo(xc, yc);
+    ctx.strokeStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+    ctx.lineWidth = 1.2; ctx.stroke();
+  }
 }
 
 const RIPPLE_MAX_FRAC = 0.85;
@@ -389,6 +474,13 @@ function frame(timestamp) {
   ctx.strokeStyle = "rgba(200,200,80,0.18)";
   ctx.lineWidth = 1; ctx.setLineDash([3,6]); ctx.stroke(); ctx.setLineDash([]);
 
+  for (let i = ghosts.length-1; i >= 0; i--) {
+    const gh = ghosts[i];
+    if (gh.trail.length === 0) { ghosts.splice(i, 1); continue; }
+    drawTrail(gh.trail);
+    gh.trail.splice(0, Math.min(Math.max(1, Math.round(gh.trimRate)), gh.trail.length));
+  }
+
   if (BEAM_MODE && photons.length !== N_PHOTONS) {
     photons = [];
     for (let i = 0; i < N_PHOTONS; i++) {
@@ -399,49 +491,56 @@ function frame(timestamp) {
   while (!BEAM_MODE && photons.length < N_PHOTONS) {
     const p = spawnPhoton(); if (p) photons.push(p);
   }
-  for (const p of photons) {
-    if (p.trail.length > TRAIL) p.trail.splice(0, p.trail.length - TRAIL);
-  }
 
   for (let i = photons.length-1; i >= 0; i--) {
     const p = photons[i];
     let nr = p.r, nphi = p.phi, npr = p.pr, dead = false;
     for (let s = 0; s < STEPS_PER_FRAME; s++) {
-      [nr, nphi, npr] = rk4(nr, nphi, npr, p.L, p.E, DT);
-      if (isNaN(nr) || nr < r_horizon*1.02) { dead = true; break; }
+      let pts, d;
+      [nr, nphi, npr, d, pts] = adaptiveStep(nr, nphi, npr, p.L, p.E, p.trail, cx, cy, scale, p.r0);
+      p.totalPtsAdded   += pts;
+      p.totalMacroSteps += 1;
+      if (d) { dead = true; break; }
+      const avgPtsPerStep = p.totalPtsAdded / p.totalMacroSteps;
+      const maxPts = Math.round(TRAIL * avgPtsPerStep);
+      if (p.trail.length > maxPts) p.trail.splice(0, p.trail.length - maxPts);
     }
     const escaped = !dead && nr > R_escape;
-    if (dead || escaped) {
-      if (dead && p.trail.length > 0) {
+
+    if (dead) {
+      if (p.trail.length > 0) {
         const [lx,ly,lr,lg,lb] = p.trail[p.trail.length-1];
         const angle = Math.atan2(ly-cy, lx-cx);
         ripples.push({ x: cx+Math.cos(angle)*rh_px*0.75,
                        y: cy+Math.sin(angle)*rh_px*0.75,
                        age: 0, cr: lr, cg: lg, cb: lb });
+        const avgPtsPerStep = p.totalPtsAdded / Math.max(1, p.totalMacroSteps);
+        ghosts.push({ trail: p.trail, trimRate: avgPtsPerStep * STEPS_PER_FRAME * 4});
       }
       if (BEAM_MODE) {
-        const fresh = spawnPhotonBeam(i);
+        const fresh = spawnPhotonBeam(p.beamIndex);
         if (fresh) { photons[i] = fresh; continue; }
       }
       photons.splice(i, 1); continue;
     }
-    p.r = nr; p.phi = nphi; p.pr = npr;
-    const x = cx+p.r*Math.cos(p.phi)*scale;
-    const y = cy+p.r*Math.sin(p.phi)*scale;
-    const [rc,gc,bc] = shiftColor(p.r, p.r0);
-    p.trail.push([x,y,rc,gc,bc]);
-    if (p.trail.length > TRAIL) p.trail.shift();
-
-    for (let j = 1; j < p.trail.length; j++) {
-      const alpha = (j/p.trail.length)*0.85;
-      const [xp,yp] = p.trail[j-1], [xc,yc,rc2,gc2,bc2] = p.trail[j];
-      ctx.beginPath(); ctx.moveTo(xp,yp); ctx.lineTo(xc,yc);
-      ctx.strokeStyle = `rgba(${rc2},${gc2},${bc2},${alpha})`;
-      ctx.lineWidth = 1.2; ctx.stroke();
+    if (escaped) {
+      if (BEAM_MODE) {
+        const fresh = spawnPhotonBeam(p.beamIndex);
+        if (fresh) { photons[i] = fresh; continue; }
+      }
+      photons.splice(i, 1); continue;
     }
-    ctx.beginPath(); ctx.arc(x, y, 2, 0, 2*Math.PI);
-    ctx.fillStyle = `rgb(${rc},${gc},${bc})`; ctx.fill();
+
+    p.r = nr; p.phi = nphi; p.pr = npr;
+    drawTrail(p.trail);
+    if (p.trail.length > 0) {
+      const [hx, hy, hr, hg, hb] = p.trail[p.trail.length-1];
+      ctx.beginPath(); ctx.arc(hx, hy, 2, 0, 2*Math.PI);
+      ctx.fillStyle = `rgb(${hr},${hg},${hb})`; ctx.fill();
+    }
   }
+
+  drawRuler();
 }
 
 requestAnimationFrame(frame);
